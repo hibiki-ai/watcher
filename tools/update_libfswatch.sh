@@ -3,8 +3,8 @@
 # Script to update vendored libfswatch source code
 # Usage: ./tools/update_libfswatch.sh [version/commit/tag]
 #
-# This script reproduces how to get the current vendored code from the 
-# upstream libfswatch repository and applies necessary patches for R package use.
+# This script reproduces how to get the current vendored code from the
+# upstream libfswatch repository and applies local patches.
 
 set -e
 
@@ -84,31 +84,23 @@ echo ""
 # Step 3: Apply patches specific to watcher package
 echo -e "${YELLOW}Step 3: Applying patches for watcher package...${NC}"
 
-# Patch 1: Fix Windows latency issue (use std::this_thread::sleep_for instead of sleep)
-# Note: Future versions may include this fix upstream (PR #340 was merged to master)
-echo "Applying Windows latency fix..."
-WINDOWS_MONITOR="${STAGING_DIR}/libfswatch/src/libfswatch/c++/windows_monitor.cpp"
+# Patch: Avoid GCC -Wformat-truncation "null format string" warning in
+# string_utils.cpp by adding an explicit null check on the format argument
+# before the vsnprintf call. Surfaces in stricter CRAN/rhub Linux builds.
+echo "Applying string_utils.cpp null-format guard..."
+STRING_UTILS="${STAGING_DIR}/libfswatch/src/libfswatch/c++/string/string_utils.cpp"
 
-if [ -f "${WINDOWS_MONITOR}" ]; then
-  # Add required headers if not present
-  if ! grep -q "include <thread>" "${WINDOWS_MONITOR}"; then
-    sed -i.bak '/^#  include <cstdio>/a\
-#  include <thread>\
-#  include <chrono>
-' "${WINDOWS_MONITOR}"
-    rm -f "${WINDOWS_MONITOR}.bak"
-  fi
-  
-  # Replace sleep() with std::this_thread::sleep_for (only if not already patched)
-  if grep -q "sleep(latency)" "${WINDOWS_MONITOR}"; then
-    sed -i.bak 's/sleep(latency)/std::this_thread::sleep_for(std::chrono::milliseconds((long long) (latency * 1000)))/' "${WINDOWS_MONITOR}"
-    rm -f "${WINDOWS_MONITOR}.bak"
-    echo -e "${GREEN}  ✓ Windows latency fix applied${NC}"
+if [ -f "${STRING_UTILS}" ]; then
+  if ! grep -q "if (!format) return" "${STRING_UTILS}"; then
+    sed -i.bak 's|^      size_t current_buffer_size = 0;$|      if (!format) return string();\
+      size_t current_buffer_size = 0;|' "${STRING_UTILS}"
+    rm -f "${STRING_UTILS}.bak"
+    echo -e "${GREEN}  ✓ Null-format guard applied${NC}"
   else
-    echo -e "${GREEN}  ✓ Windows latency fix already present${NC}"
+    echo -e "${GREEN}  ✓ Null-format guard already present${NC}"
   fi
 else
-  echo -e "${YELLOW}  ⚠ windows_monitor.cpp not found, skipping patch${NC}"
+  echo -e "${YELLOW}  ⚠ string_utils.cpp not found, skipping patch${NC}"
 fi
 
 echo ""
@@ -133,5 +125,5 @@ echo ""
 echo "Summary:"
 echo "  - Updated from commit: ${CURRENT_COMMIT}"
 echo "  - Updated from tag: ${CURRENT_TAG}"
-echo "  - Patches applied: Windows latency fix"
+echo "  - Patches applied: string_utils.cpp null-format guard"
 echo ""
