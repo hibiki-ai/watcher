@@ -27,6 +27,8 @@ Authors:
 Other contributors:
 \itemize{
   \item Posit Software, PBC (\href{https://ror.org/03wc8by49}{ROR}) [copyright holder, funder]
+  \item Enrico M. Crisostomo (libfswatch library) [copyright holder]
+  \item Alan Dipert (libfswatch library) [copyright holder]
 }
 
 }
